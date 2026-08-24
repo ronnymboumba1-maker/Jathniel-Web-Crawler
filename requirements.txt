@@ -1,0 +1,12 @@
+# JATHNIEL-WEB-CRAWLER-PRO - Dépendances
+# Crawler web professionnel avec extraction avancée
+
+# Core
+requests>=2.31.0
+beautifulsoup4>=4.12.2
+lxml>=4.9.3
+urllib3>=2.1.0
+
+# Utilitaires
+colorama>=0.4.6
+mimetypes>=0.2.1
