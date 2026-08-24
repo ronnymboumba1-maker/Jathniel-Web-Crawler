@@ -25,10 +25,10 @@ JATHNIEL-WEB-CRAWLER-PRO est un crawler web professionnel conçu pour explorer e
 
 ```bash
 # 1. Cloner le dépôt
-git clone https://github.com/votre-compte/jathniel-web-crawler.git
+https://github.com/ronnymboumba1-maker/Jathniel-Web-Crawler
 cd jathniel-web-crawler
 
-# 2. Créer un environnement virtuel
+# 2. Créer un environnement virtuel ( optionnel )
 python -m venv venv
 source venv/bin/activate  # Linux/WSL
 # ou
