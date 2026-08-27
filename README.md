@@ -1,6 +1,4 @@
-README.md pour JATHNIEL-WEB-CRAWLER
 
-```markdown
 # 🕷️ JATHNIEL-WEB-CRAWLER-PRO
 
 ## Crawler web professionnel avec extraction de fichiers sensibles
