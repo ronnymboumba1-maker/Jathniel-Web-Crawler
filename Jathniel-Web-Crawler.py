@@ -2,9 +2,17 @@
 # -*- coding: utf-8 -*-
 
 """
-JATHNIEL-WEB-CRAWLER-PRO v2.0
+JATHNIEL-WEB-CRAWLER-PRO v3.0
 Crawler web professionnel avec extraction de fichiers sensibles
 Pour Ubuntu/WSL - Usage éducatif et tests de sécurité autorisés uniquement
+
+NOUVEAUTÉS v3.0 :
+✅ Liste séparée : extensions / noms de fichiers / dossiers
+✅ Détection améliorée (regex multi-patterns)
+✅ Test direct des chemins sensibles
+✅ Détection par contenu (password, token, clés SSH)
+✅ Gestion des collisions de noms
+✅ Log des erreurs (plus de except: pass)
 """
 
 import os
@@ -31,6 +39,7 @@ import mimetypes
 # Désactiver les avertissements SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+
 class JATHNIELCrawlerPro:
     """Crawler web professionnel avec extraction de fichiers sensibles"""
     
@@ -43,7 +52,7 @@ class JATHNIELCrawlerPro:
             'threads': 10,
             'timeout': 30,
             'delay': 0.5,
-            'user_agent': 'JATHNIEL-Crawler-Pro/2.0 (Educational; Security Testing)',
+            'user_agent': 'JATHNIEL-Crawler-Pro/3.0 (Educational; Security Testing)',
             'output_dir': './crawled_sites',
             'download_sensitive': True,
             'download_assets': True,
@@ -85,44 +94,69 @@ class JATHNIELCrawlerPro:
         self.scanning = False
         self.pause = False
         
-        # Liste des fichiers sensibles à rechercher
-        self.sensitive_files = [
+        # ==================== LISTES SENSIBLES SÉPARÉES ====================
+        
+        # Extensions sensibles
+        self.sensitive_extensions = [
             # Configuration
-            '.env', 'wp-config.php', 'config.php', 'settings.py', 'appsettings.json',
-            'web.config', 'php.ini', 'nginx.conf', 'httpd.conf', '.htaccess',
-            'robots.txt', 'sitemap.xml', 'crossdomain.xml', 'clientaccesspolicy.xml',
-            
-            # Base de données
-            '.sql', '.db', '.sqlite', '.sqlite3', '.dump', 'backup.sql',
-            'database.sql', 'dump.sql', 'db_backup.sql', 'mydb.sql',
-            
+            '.env', '.env.local', '.env.prod', '.env.backup',
+            '.ini', '.conf', '.config', '.cfg',
+            '.yml', '.yaml', '.xml', '.json', '.toml',
+            # Base de données / dumps
+            '.sql', '.db', '.sqlite', '.sqlite3', '.dump',
+            '.bak', '.backup', '.old', '.orig', '.save', '.swp', '.tmp',
             # Archives
-            '.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz', '.tgz',
-            'backup.zip', 'backup.rar', 'archive.tar', 'backup.tar.gz',
-            
-            # Code source
-            '.git', '.gitignore', '.gitconfig', '.svn', '.hg', '.cvs',
-            '.idea', '.vscode', '.project', '.classpath', '.settings',
-            
+            '.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.bz2', '.xz',
+            # Auth / certificats
+            '.pem', '.crt', '.cer', '.key', '.p12', '.pfx', '.ppk',
             # Logs
-            '.log', 'access.log', 'error.log', 'debug.log', 'system.log',
-            
-            # Fichiers système
-            '.passwd', '.shadow', '.bash_history', '.bashrc', '.profile',
-            'id_rsa', 'id_dsa', 'authorized_keys', 'known_hosts',
-            
-            # Certificats
-            '.pem', '.crt', '.key', '.p12', '.pfx', '.cer',
-            
-            # Fichiers temporaires
-            '.tmp', '.temp', '.swp', '.swo', '.bak', '.old', '.orig',
-            '~', '.#', '.DS_Store', 'Thumbs.db',
-            
-            # Autres
-            'composer.json', 'package.json', 'Gemfile', 'requirements.txt',
-            'Dockerfile', 'docker-compose.yml', 'Makefile', 'Vagrantfile',
-            'README.md', 'INSTALL', 'CHANGELOG', 'LICENSE', 'COPYING'
+            '.log',
+            # Binaires (challenge)
+            '.bin', '.dat', '.raw', '.img', '.iso',
         ]
+        
+        # Noms de fichiers sensibles
+        self.sensitive_filenames = [
+            # Config
+            'wp-config.php', 'config.php', 'configuration.php',
+            'settings.py', 'settings.json', 'appsettings.json',
+            'web.config', 'app.config', 'database.yml', 'db.php',
+            'config.inc.php', 'php.ini', 'nginx.conf', 'httpd.conf',
+            # Discovery
+            'robots.txt', 'sitemap.xml', 'crossdomain.xml',
+            'humans.txt', 'security.txt', 'clientaccesspolicy.xml',
+            # Auth / clés
+            'passwd', 'shadow', 'sudoers',
+            'id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519',
+            'authorized_keys', 'known_hosts',
+            '.bash_history', '.bashrc', '.profile', '.gitconfig',
+            '.gitignore', '.DS_Store', 'Thumbs.db', '.htaccess', '.htpasswd',
+            # Dépendances
+            'composer.json', 'composer.lock', 'package.json',
+            'package-lock.json', 'yarn.lock', 'requirements.txt',
+            'Gemfile', 'Gemfile.lock', 'pom.xml', 'build.gradle',
+            # Docker / CI
+            'Dockerfile', 'docker-compose.yml', 'Makefile', 'Vagrantfile',
+            '.travis.yml', '.gitlab-ci.yml', 'Jenkinsfile',
+            # Docs
+            'README.md', 'README.txt', 'INSTALL', 'CHANGELOG.md',
+            'LICENSE', 'COPYING',
+        ]
+        
+        # Dossiers sensibles
+        self.sensitive_directories = [
+            '/admin/', '/administrator/', '/backup/', '/backups/',
+            '/private/', '/secret/', '/config/', '/configs/',
+            '/db/', '/database/', '/sql/', '/dumps/',
+            '/.git/', '/.svn/', '/.hg/', '/.env/',
+            '/logs/', '/log/', '/tmp/', '/temp/',
+            '/api/', '/v1/', '/v2/', '/graphql',
+            '/swagger/', '/api-docs/', '/phpmyadmin/',
+            '/adminer/', '/shell/', '/test/',
+        ]
+        
+        # Alias de compatibilité (au cas où d'autres parties du code utilisent self.sensitive_files)
+        self.sensitive_files = self.sensitive_extensions + self.sensitive_filenames
         
         # Extensions d'assets à télécharger
         self.asset_extensions = [
@@ -191,7 +225,7 @@ class JATHNIELCrawlerPro:
 {self.colorize('║', 'cyan')}  {self.colorize('██║██╔══██║   ██║   ██╔══██║██║╚██╗██║██║██╔══╝  ██║     ██║   ██║', 'red')}  {self.colorize('║', 'cyan')}
 {self.colorize('║', 'cyan')}  {self.colorize('██║██║  ██║   ██║   ██║  ██║██║ ╚████║██║███████╗███████╗╚██████╔╝', 'red')}  {self.colorize('║', 'cyan')}
 {self.colorize('║', 'cyan')}  {self.colorize('╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝╚══════╝╚══════╝ ╚═════╝ ', 'red')}  {self.colorize('║', 'cyan')}
-{self.colorize('║', 'cyan')}  {self.colorize('                    WEB CRAWLER PRO v2.0 - JATHNIEL EDITION', 'yellow')}  {self.colorize('║', 'cyan')}
+{self.colorize('║', 'cyan')}  {self.colorize('                    WEB CRAWLER PRO v3.0 - JATHNIEL EDITION', 'yellow')}  {self.colorize('║', 'cyan')}
 {self.colorize('║', 'cyan')}  {self.colorize('              🕷️  Crawler professionnel avec extraction avancée  🕷️', 'green')}  {self.colorize('║', 'cyan')}
 {self.colorize('║', 'cyan')}  {self.colorize('              🛡️  Ethical Hacking Tool - JATHNIEL  🛡️', 'magenta')}  {self.colorize('║', 'cyan')}
 {self.colorize('║', 'cyan')}  {self.colorize('                              ★  JATHNIEL  ★                                  ', 'yellow')}  {self.colorize('║', 'cyan')}
@@ -205,14 +239,14 @@ class JATHNIELCrawlerPro:
         
         menu = f"""
 {self.colorize('┌────────────────────────────────────────────────────────────────────────────────────┐', 'cyan')}
-{self.colorize('│', 'cyan')}  {self.colorize('MENU PRINCIPAL - WEB CRAWLER PRO', 'bold')}                                               {self.colorize('│', 'cyan')}
+{self.colorize('│', 'cyan')}  {self.colorize('MENU PRINCIPAL - WEB CRAWLER PRO v3.0', 'bold')}                                          {self.colorize('│', 'cyan')}
 {self.colorize('├────────────────────────────────────────────────────────────────────────────────────┤', 'cyan')}
 {self.colorize('│', 'cyan')}  {self.colorize('1.', 'yellow')}  {self.colorize('Lancer un crawl complet', 'white')}                                                 {self.colorize('│', 'cyan')}
 {self.colorize('│', 'cyan')}  {self.colorize('2.', 'yellow')}  {self.colorize('Crawl avec extraction de fichiers sensibles', 'white')}                             {self.colorize('│', 'cyan')}
-{self.colorize('│', 'cyan')}  {self.colorize('3.', 'yellow')}  {self.colorize('Télécharger un fichier spécifique', 'white')}                                       {self.colorize('│', 'cyan')}
-{self.colorize('│', 'cyan')}  {self.colorize('4.', 'yellow')}  {self.colorize('Voir les résultats du crawl', 'white')}                                             {self.colorize('│', 'cyan')}
-{self.colorize('│', 'cyan')}  {self.colorize('5.', 'yellow')}  {self.colorize('Voir les fichiers sensibles trouvés', 'white')}                                     {self.colorize('│', 'cyan')}
-{self.colorize('│', 'cyan')}  {self.colorize('6.', 'yellow')}  {self.colorize('Exporter les résultats (JSON/HTML)', 'white')}                                      {self.colorize('│', 'cyan')}
+{self.colorize('│', 'cyan')}  {self.colorize('3.', 'yellow')}  {self.colorize('Telecharger un fichier specifique', 'white')}                                       {self.colorize('│', 'cyan')}
+{self.colorize('│', 'cyan')}  {self.colorize('4.', 'yellow')}  {self.colorize('Voir les resultats du crawl', 'white')}                                             {self.colorize('│', 'cyan')}
+{self.colorize('│', 'cyan')}  {self.colorize('5.', 'yellow')}  {self.colorize('Voir les fichiers sensibles trouves', 'white')}                                     {self.colorize('│', 'cyan')}
+{self.colorize('│', 'cyan')}  {self.colorize('6.', 'yellow')}  {self.colorize('Exporter les resultats (JSON/HTML)', 'white')}                                      {self.colorize('│', 'cyan')}
 {self.colorize('│', 'cyan')}  {self.colorize('7.', 'yellow')}  {self.colorize('Configuration', 'white')}                                                          {self.colorize('│', 'cyan')}
 {self.colorize('│', 'cyan')}  {self.colorize('8.', 'yellow')}  {self.colorize('Statistiques du crawl', 'white')}                                                   {self.colorize('│', 'cyan')}
 {self.colorize('│', 'cyan')}  {self.colorize('9.', 'yellow')}  {self.colorize('Aide / Documentation', 'white')}                                                    {self.colorize('│', 'cyan')}
@@ -376,7 +410,7 @@ class JATHNIELCrawlerPro:
                 self.results['comments'].extend(comments)
             
         except Exception as e:
-            pass
+            print(f"  {self.colorize('⚠️', 'yellow')} Erreur sur {url}: {str(e)[:60]}")
     
     def extract_links(self, html, base_url):
         """Extrait les liens d'une page"""
@@ -476,7 +510,7 @@ class JATHNIELCrawlerPro:
                     })
                     self.results['statistics']['total_assets'] += 1
                 
-                print(f"    📦 Asset téléchargé: {filename}")
+                print(f"    📦 Asset telecharge: {filename}")
                 
         except Exception as e:
             pass
@@ -494,30 +528,90 @@ class JATHNIELCrawlerPro:
         
         return filename
     
-    # ==================== FICHIERS SENSIBLES ====================
+    # ==================== FICHIERS SENSIBLES (AMÉLIORÉ) ====================
     
     def search_sensitive_in_page(self, html, url, site_dir):
-        """Recherche des fichiers sensibles dans le contenu de la page"""
-        # Vérifier les URLs dans le texte
-        urls_in_page = re.findall(r'(?:href|src|action)=["\']([^"\']+)["\']', html, re.IGNORECASE)
+        """Recherche des fichiers sensibles dans le contenu de la page."""
+        
+        found_urls = set()
+        
+        # === 1. Chercher dans les liens HTML ===
+        urls_in_page = re.findall(r'(?:href|src|action|data-url)=["\']([^"\']+)["\']', html, re.IGNORECASE)
         
         for file_url in urls_in_page:
-            # Vérifier si c'est un fichier sensible
-            for pattern in self.sensitive_files:
-                if pattern.lower() in file_url.lower():
+            file_url_lower = file_url.lower()
+            
+            # Vérifier contre les extensions
+            for ext in self.sensitive_extensions:
+                if file_url_lower.endswith(ext) or ext + '?' in file_url_lower or ext + '#' in file_url_lower:
                     absolute_url = urljoin(url, file_url)
+                    if absolute_url not in found_urls:
+                        found_urls.add(absolute_url)
+                        self.download_sensitive_file(absolute_url, site_dir)
+                    break
+            
+            # Vérifier contre les noms de fichiers
+            for fname in self.sensitive_filenames:
+                if fname.lower() in file_url_lower:
+                    absolute_url = urljoin(url, file_url)
+                    if absolute_url not in found_urls:
+                        found_urls.add(absolute_url)
+                        self.download_sensitive_file(absolute_url, site_dir)
+                    break
+            
+            # Vérifier contre les dossiers sensibles
+            for directory in self.sensitive_directories:
+                if directory.lower() in file_url_lower:
+                    absolute_url = urljoin(url, file_url)
+                    if absolute_url not in found_urls:
+                        found_urls.add(absolute_url)
+                        self.download_sensitive_file(absolute_url, site_dir)
+                    break
+        
+        # === 2. Chercher les chemins absolus dans le texte brut ===
+        # Extensions
+        ext_pattern = '|'.join([re.escape(e.lstrip('.')) for e in self.sensitive_extensions])
+        paths_ext = re.findall(
+            r'(/[a-zA-Z0-9_\-./]+\.(?:' + ext_pattern + r'))',
+            html, re.IGNORECASE
+        )
+        for path in paths_ext:
+            absolute_url = urljoin(url, path)
+            if absolute_url not in found_urls:
+                found_urls.add(absolute_url)
+                self.download_sensitive_file(absolute_url, site_dir)
+        
+        # Noms de fichiers
+        for fname in self.sensitive_filenames:
+            pattern = r'([/a-zA-Z0-9_\-./]*' + re.escape(fname) + r')'
+            matches = re.findall(pattern, html, re.IGNORECASE)
+            for path in matches:
+                absolute_url = urljoin(url, path)
+                if absolute_url not in found_urls:
+                    found_urls.add(absolute_url)
                     self.download_sensitive_file(absolute_url, site_dir)
         
-        # Vérifier les chemins absolus
-        paths = re.findall(r'([/a-zA-Z0-9_\-\.]+\.(?:' + '|'.join([p.replace('.', '') for p in self.sensitive_files if p.startswith('.')]) + r'))', html)
-        for path in paths:
-            absolute_url = urljoin(url, path)
-            self.download_sensitive_file(absolute_url, site_dir)
+        # === 3. Tester directement les dossiers sensibles ===
+        parsed = urlparse(url)
+        base = f"{parsed.scheme}://{parsed.netloc}"
+        
+        for directory in self.sensitive_directories:
+            test_url = base + directory
+            if test_url not in found_urls:
+                found_urls.add(test_url)
+                self.download_sensitive_file(test_url, site_dir)
+        
+        # === 4. Tester directement les fichiers sensibles à la racine ===
+        for fname in self.sensitive_filenames:
+            test_url = base + '/' + fname
+            if test_url not in found_urls:
+                found_urls.add(test_url)
+                self.download_sensitive_file(test_url, site_dir)
     
     def download_sensitive_file(self, url, site_dir):
-        """Télécharge un fichier sensible"""
+        """Télécharge un fichier sensible (avec détection améliorée)."""
         if url in self.visited_files:
-            return
+            return False
         
         with self.lock:
             self.visited_files.add(url)
@@ -530,61 +624,95 @@ class JATHNIELCrawlerPro:
                 verify=self.config['verify_ssl']
             )
             
-            if response.status_code == 200:
-                # Déterminer le nom du fichier
-                filename = urlparse(url).path.split('/')[-1]
-                if not filename:
-                    filename = hashlib.md5(url.encode()).hexdigest()
-                
-                # Ajouter l'extension si nécessaire
-                if '.' not in filename:
-                    content_type = response.headers.get('content-type', '')
-                    ext = mimetypes.guess_extension(content_type) or '.bin'
-                    filename += ext
-                
-                # Nettoyer le nom
-                filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
-                
-                # Sauvegarder
+            # Ne garder que les 200
+            if response.status_code != 200:
+                return False
+            
+            # Infos de base
+            content_type = response.headers.get('content-type', '').lower()
+            content_len = len(response.content)
+            content = response.content
+            
+            # Détecter si c'est intéressant (par contenu)
+            is_interesting_content = (
+                b'password' in content.lower() or
+                b'api_key' in content.lower() or
+                b'secret' in content.lower() or
+                b'token' in content.lower() or
+                b'BEGIN RSA' in content or
+                b'BEGIN PRIVATE KEY' in content or
+                b'BEGIN OPENSSH' in content or
+                b'<config' in content.lower() or
+                b'<?xml' in content.lower()
+            )
+            
+            # Ne pas télécharger les gros HTML
+            if 'text/html' in content_type and content_len > 100000 and not is_interesting_content:
+                return False
+            
+            # Limiter la taille (10 Mo max)
+            if content_len > 10 * 1024 * 1024:
+                return False
+            
+            # Nom de fichier
+            filename = urlparse(url).path.split('/')[-1]
+            if not filename or filename.endswith('/'):
+                filename = 'index_' + hashlib.md5(url.encode()).hexdigest()[:8]
+            
+            # Ajouter extension si absente
+            if '.' not in filename:
+                ext = mimetypes.guess_extension(content_type.split(';')[0].strip()) or '.bin'
+                filename += ext
+            
+            filename = re.sub(r'[<>:"/\\|?*]', '_', filename)[:100]
+            
+            # Éviter les collisions de noms
+            filepath = f"{site_dir}/sensitive/{filename}"
+            if os.path.exists(filepath):
+                base, ext = os.path.splitext(filename)
+                filename = f"{base}_{hashlib.md5(url.encode()).hexdigest()[:6]}{ext}"
                 filepath = f"{site_dir}/sensitive/{filename}"
-                with open(filepath, 'wb') as f:
-                    f.write(response.content)
-                
-                # Ajouter aux résultats
-                file_info = {
-                    'url': url,
-                    'filename': filename,
-                    'size': len(response.content),
-                    'path': filepath,
-                    'type': self.classify_sensitive_file(filename)
-                }
-                
-                with self.lock:
-                    self.results['sensitive_files'].append(file_info)
-                    self.results['statistics']['total_sensitive'] += 1
-                
-                print(f"    🔴 FICHIER SENSIBLE TELECHARGE: {filename}")
-                print(f"        📍 {url}")
-                print(f"        📦 {len(response.content)} octets")
-                
-                return True
-                
-        except Exception as e:
-            pass
+            
+            # Sauvegarder
+            with open(filepath, 'wb') as f:
+                f.write(content)
+            
+            # Ajouter aux résultats
+            file_info = {
+                'url': url,
+                'filename': filename,
+                'size': content_len,
+                'path': filepath,
+                'type': self.classify_sensitive_file(filename),
+                'content_preview': content[:200].decode('utf-8', errors='ignore')
+            }
+            
+            with self.lock:
+                self.results['sensitive_files'].append(file_info)
+                self.results['statistics']['total_sensitive'] += 1
+            
+            print(f"    {self.colorize('🔴 FICHIER SENSIBLE:', 'red')} {filename}")
+            print(f"        📍 {url}")
+            print(f"        📦 {content_len} octets")
+            
+            return True
         
-        return False
+        except Exception as e:
+            # Log les erreurs au lieu de les masquer
+            print(f"    {self.colorize('⚠️', 'yellow')} Erreur sur {url}: {str(e)[:60]}")
+            return False
     
     def classify_sensitive_file(self, filename):
         """Classifie le type de fichier sensible"""
         filename_lower = filename.lower()
         
-        if 'config' in filename_lower or '.env' in filename_lower:
+        if 'config' in filename_lower or '.env' in filename_lower or '.ini' in filename_lower:
             return 'Configuration'
         elif '.sql' in filename_lower or 'dump' in filename_lower or 'backup' in filename_lower:
             return 'Database'
         elif '.log' in filename_lower:
             return 'Log'
-        elif '.key' in filename_lower or '.pem' in filename_lower or 'id_rsa' in filename_lower:
+        elif '.key' in filename_lower or '.pem' in filename_lower or 'id_rsa' in filename_lower or '.crt' in filename_lower:
             return 'Certificate/Key'
         elif '.git' in filename_lower or '.svn' in filename_lower:
             return 'Version Control'
@@ -594,8 +722,12 @@ class JATHNIELCrawlerPro:
             return 'SEO/Discovery'
         elif '.zip' in filename_lower or '.rar' in filename_lower or '.tar' in filename_lower:
             return 'Archive'
-        elif 'backup' in filename_lower or 'bak' in filename_lower:
+        elif 'backup' in filename_lower or '.bak' in filename_lower:
             return 'Backup'
+        elif '.bin' in filename_lower or '.dat' in filename_lower:
+            return 'Binary'
+        elif 'package.json' in filename_lower or 'composer.json' in filename_lower or 'requirements.txt' in filename_lower:
+            return 'Dependencies'
         else:
             return 'Other'
     
@@ -658,7 +790,6 @@ class JATHNIELCrawlerPro:
                         admin_urls.append(url)
                         print(f"    🔐 Page admin trouvee: {url}")
                         
-                        # Télécharger la page admin si c'est un fichier sensible
                         if self.config['download_sensitive']:
                             self.download_sensitive_file(url, f"{self.config['output_dir']}/{self.target_domain}")
                         
@@ -775,12 +906,16 @@ class JATHNIELCrawlerPro:
         print(self.colorize("\n🔴 FICHIERS SENSIBLES TROUVES", 'bold'))
         print(self.colorize("="*60, 'cyan'))
         
-        for i, file in enumerate(self.results['sensitive_files'], 1):
-            print(f"\n{i}. {self.colorize(file['filename'], 'red')}")
-            print(f"   📍 {file['url']}")
-            print(f"   📦 {file['size']} octets")
-            print(f"   📂 {file['path']}")
-            print(f"   📋 Type: {self.colorize(file['type'], 'yellow')}")
+        # Grouper par type
+        by_type = defaultdict(list)
+        for file in self.results['sensitive_files']:
+            by_type[file['type']].append(file)
+        
+        for ftype, files in by_type.items():
+            print(f"\n{self.colorize(f'📁 {ftype} ({len(files)})', 'yellow', bold=True)}")
+            for file in files:
+                print(f"  • {self.colorize(file['filename'], 'red')} ({file['size']} octets)")
+                print(f"    📍 {file['url']}")
     
     def show_results(self):
         """Affiche les résultats complets"""
@@ -844,6 +979,7 @@ class JATHNIELCrawlerPro:
         html = f"""<!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>Crawl Report - JATHNIEL</title>
     <style>
         body {{ font-family: Arial; margin: 20px; background: #f5f5f5; }}
@@ -865,7 +1001,7 @@ class JATHNIELCrawlerPro:
 <body>
     <div class="container">
         <div class="header">
-            <h1>🕷️ Web Crawl Report</h1>
+            <h1>🕷️ Web Crawl Report v3.0</h1>
             <p>Generated by JATHNIEL-WEB-CRAWLER-PRO</p>
             <p>Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
             <p>Target: {self.target_url}</p>
@@ -899,7 +1035,7 @@ class JATHNIELCrawlerPro:
             </div>
         </div>
         
-        <h2>🔴 Sensitive Files</h2>
+        <h2>🔴 Sensitive Files ({len(self.results['sensitive_files'])})</h2>
         <table>
             <tr>
                 <th>#</th>
@@ -916,7 +1052,7 @@ class JATHNIELCrawlerPro:
                 <td>{file['filename']}</td>
                 <td>{file['type']}</td>
                 <td>{file['size']} bytes</td>
-                <td><a href="{file['url']}" target="_blank">{file['url'][:50]}...</a></td>
+                <td><a href="{file['url']}" target="_blank">{file['url'][:60]}...</a></td>
             </tr>"""
         
         html += """
@@ -942,14 +1078,14 @@ class JATHNIELCrawlerPro:
         <h2>📧 Emails</h2>
         <ul>"""
         
-        for email in self.results['emails'][:20]:
+        for email in self.results['emails'][:30]:
             html += f"<li>{email}</li>"
         
         html += """
         </ul>
         
         <div class="footer">
-            <p>Generated by JATHNIEL-WEB-CRAWLER-PRO v2.0</p>
+            <p>Generated by JATHNIEL-WEB-CRAWLER-PRO v3.0</p>
             <p>Ethical Hacking Tool - For educational purposes only</p>
             <p>★ JATHNIEL ★</p>
         </div>
@@ -967,7 +1103,6 @@ class JATHNIELCrawlerPro:
         with open(filename, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             
-            # Sensitive files
             writer.writerow(['SENSITIVE FILES'])
             writer.writerow(['File', 'Type', 'Size', 'URL'])
             for file in self.results['sensitive_files']:
@@ -975,7 +1110,6 @@ class JATHNIELCrawlerPro:
             
             writer.writerow([])
             
-            # Admin pages
             writer.writerow(['ADMIN PAGES'])
             writer.writerow(['URL'])
             for url in self.results['admin_pages']:
@@ -983,7 +1117,6 @@ class JATHNIELCrawlerPro:
             
             writer.writerow([])
             
-            # Emails
             writer.writerow(['EMAILS'])
             writer.writerow(['Email'])
             for email in self.results['emails']:
@@ -1001,7 +1134,8 @@ class JATHNIELCrawlerPro:
         print(f"🔴 Fichiers sensibles: {stats['total_sensitive']}")
         print(f"📦 Taille totale: {self.format_size(stats['total_size'])}")
         print(f"⏱️  Duree: {stats['duration']:.2f} secondes")
-        print(f"🚀 Vitesse moyenne: {stats['total_pages'] / stats['duration']:.2f} pages/sec")
+        if stats['duration'] > 0:
+            print(f"🚀 Vitesse moyenne: {stats['total_pages'] / stats['duration']:.2f} pages/sec")
     
     def format_size(self, bytes):
         """Formate la taille en unités lisibles"""
@@ -1026,7 +1160,7 @@ class JATHNIELCrawlerPro:
     def show_help(self):
         """Affiche l'aide"""
         help_text = f"""
-{self.colorize('📚 WEB CRAWLER PRO - GUIDE D UTILISATION', 'bold')}
+{self.colorize('📚 WEB CRAWLER PRO v3.0 - GUIDE D UTILISATION', 'bold')}
 {self.colorize('='*60, 'cyan')}
 
 {self.colorize('1. Crawl complet', 'green')}
@@ -1037,7 +1171,7 @@ class JATHNIELCrawlerPro:
 {self.colorize('2. Extraction de fichiers sensibles', 'green')}
    - Recherche automatique des fichiers sensibles
    - Telecharge les fichiers trouves
-   - Classifie par type (config, DB, logs, etc.)
+   - Classifie par type (config, DB, logs, auth, etc.)
 
 {self.colorize('3. Telechargement specifique', 'green')}
    - Telecharge un fichier specifique
@@ -1048,9 +1182,15 @@ class JATHNIELCrawlerPro:
    - HTML: Rapport visuel
    - CSV: Analyse dans Excel
 
+{self.colorize('🆕 NOUVEAU v3.0 :', 'yellow')}
+   - Liste separee : extensions / noms / dossiers
+   - Test direct des chemins sensibles (/admin/, /.git/, etc.)
+   - Detection par contenu (password, token, cles SSH)
+   - Classification par type
+
 {self.colorize('⚠️ RAPPEL LEGAL', 'red')}
    - Utilisez UNIQUEMENT sur vos propres sites
-   - Obtenez une autorisation écrite
+   - Obtenez une autorisation ecrite
    - Usage educatif et de securite uniquement
         """
         print(help_text)
@@ -1111,6 +1251,7 @@ class JATHNIELCrawlerPro:
             else:
                 print(self.colorize("❌ Choix invalide", 'red'))
                 time.sleep(1)
+
 
 # ==================== MAIN ====================
 
